@@ -4,6 +4,156 @@
       <h1>Web Basic CW Fixer</h1>
       <!-- <p class="muted">ConceptWave metadata XML – Script lint</p> -->
     </header>
+    <!-- Allowlist Toggle Button -->
+    <div class="row" style="justify-content: flex-end; margin-bottom: 12px">
+      <button class="secondary" @click="toggleAllowlist">
+        {{ showAllowlist ? "Allowlist'i Kapat" : "Allowlist Yönetimi" }}
+      </button>
+    </div>
+
+    <!-- Allowlist Panel -->
+    <section class="card" v-if="showAllowlist">
+      <h2>Allowlist Yönetimi</h2>
+
+      <div class="row" style="gap: 10px; margin-bottom: 12px">
+        <input
+          class="text"
+          v-model="newRoot"
+          placeholder="Yeni root ekle (örn: RegExp, Finder, tt_Common, eval...)"
+          @keydown.enter="addRoot"
+        />
+        <button
+          class="primary"
+          :disabled="!newRoot.trim() || allowlistBusy"
+          @click="addRoot"
+        >
+          Ekle
+        </button>
+
+        <button
+          class="secondary"
+          :disabled="allowlistBusy"
+          @click="reloadAllowlist"
+        >
+          Yenile
+        </button>
+
+        <button
+          class="secondary"
+          :disabled="allowlistBusy || !allowDirty"
+          @click="saveAllowlist"
+        >
+          Kaydet (PUT)
+        </button>
+      </div>
+
+      <div class="muted" v-if="allowlistBusy">İşleniyor...</div>
+      <div class="error" v-if="allowlistError">{{ allowlistError }}</div>
+
+      <div class="muted" style="margin-top: 6px">
+        Roots: <b>{{ allowlist.roots.length }}</b>
+      </div>
+
+      <div
+        class="tableWrap"
+        v-if="allowlist.roots.length"
+        style="margin-top: 12px"
+      >
+        <table>
+          <colgroup>
+            <col style="width: 60px" />
+            <col style="width: auto" />
+            <col style="width: 160px" />
+          </colgroup>
+
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Root</th>
+              <th>İşlem</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr v-for="(r, i) in allowlist.roots" :key="r + '_' + i">
+              <td>{{ i + 1 }}</td>
+
+              <!-- Edit: inline -->
+              <td>
+                <input
+                  class="text"
+                  v-model="allowlist.roots[i]"
+                  @input="allowDirty = true"
+                />
+              </td>
+
+              <td>
+                <button
+                  class="danger"
+                  :disabled="allowlistBusy"
+                  @click="deleteRoot(r)"
+                >
+                  Sil
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-else class="muted" style="margin-top: 10px">Root listesi boş.</div>
+
+      <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 16px 0" />
+
+      <!-- Optional: RegexFlags + SkipIdentifiers (şimdilik sadece gösterelim) -->
+      <div class="row" style="gap: 20px; align-items: flex-start">
+        <div style="min-width: 320px">
+          <div style="font-weight: 600; margin-bottom: 6px">RegexFlags</div>
+          <div class="muted" v-if="!allowlist.regexFlags.length">Boş</div>
+          <ul v-else class="plainList">
+            <li v-for="(x, idx) in allowlist.regexFlags" :key="'rf_' + idx">
+              <code>{{ x }}</code>
+            </li>
+          </ul>
+        </div>
+
+        <div style="min-width: 320px">
+          <div style="font-weight: 600; margin-bottom: 6px">
+            SkipIdentifiers
+          </div>
+          <div class="muted" v-if="!allowlist.skipIdentifiers.length">Boş</div>
+          <ul v-else class="plainList">
+            <li
+              v-for="(x, idx) in allowlist.skipIdentifiers"
+              :key="'sk_' + idx"
+            >
+              <code>{{ x }}</code>
+            </li>
+          </ul>
+        </div>
+
+        <div style="min-width: 240px">
+          <div style="font-weight: 600; margin-bottom: 6px">MaxUploadMb</div>
+          <input
+            class="text"
+            type="number"
+            min="1"
+            max="90"
+            v-model.number="allowlist.maxUploadMb"
+            @input="allowDirty = true"
+          />
+          <div class="muted" style="margin-top: 6px">(Kaydet ile PUT)</div>
+
+          <button
+            class="secondary"
+            :disabled="allowlistBusy || !allowDirty"
+            @click="saveAllowlist"
+          >
+            Kaydet (PUT)
+          </button>
+        </div>
+      </div>
+    </section>
 
     <section class="card">
       <h2>1) XML Yükle</h2>
@@ -290,4 +440,136 @@ function extractErr(e) {
 }
 
 onBeforeUnmount(() => stopPolling());
+// -------------------- Allowlist UI --------------------
+const showAllowlist = ref(false);
+const allowlistBusy = ref(false);
+const allowlistError = ref("");
+const allowDirty = ref(false);
+
+const newRoot = ref("");
+
+const allowlist = ref({
+  roots: [],
+  regexFlags: [],
+  skipIdentifiers: [],
+  maxUploadMb: 90,
+});
+
+function toggleAllowlist() {
+  showAllowlist.value = !showAllowlist.value;
+  if (showAllowlist.value) {
+    reloadAllowlist();
+  }
+}
+
+async function reloadAllowlist() {
+  allowlistError.value = "";
+  allowlistBusy.value = true;
+  allowDirty.value = false;
+
+  try {
+    const res = await axios.get("/api/allowlist");
+    allowlist.value = normalizeAllowlist(res.data);
+
+    // Roots'u UI tarafında her zaman sıralı gösterelim (istersen kaldır)
+    allowlist.value.roots.sort((a, b) => a.localeCompare(b));
+  } catch (e) {
+    allowlistError.value = extractErr(e) || "Allowlist alınamadı.";
+  } finally {
+    allowlistBusy.value = false;
+  }
+}
+
+async function addRoot() {
+  const v = newRoot.value.trim();
+  if (!v) return;
+
+  allowlistError.value = "";
+  allowlistBusy.value = true;
+
+  try {
+    const res = await axios.post("/api/allowlist/roots", { value: v });
+    allowlist.value = normalizeAllowlist(res.data);
+    allowlist.value.roots.sort((a, b) => a.localeCompare(b));
+    newRoot.value = "";
+    allowDirty.value = false;
+  } catch (e) {
+    allowlistError.value = extractErr(e) || "Root eklenemedi.";
+  } finally {
+    allowlistBusy.value = false;
+  }
+}
+
+async function deleteRoot(value) {
+  const v = (value || "").trim();
+  if (!v) return;
+
+  allowlistError.value = "";
+  allowlistBusy.value = true;
+  console.log("deleteRoot called", { value, v });
+
+  try {
+    //const url = `/api/allowlist/roots/${encodeURIComponent(v)}`;
+    const res = await axios.delete("/api/allowlist/roots", {
+      params: { value: v },
+    });
+
+    allowlist.value = normalizeAllowlist(res.data);
+    allowlist.value.roots.sort((a, b) => a.localeCompare(b));
+    allowDirty.value = false;
+  } catch (e) {
+    allowlistError.value = extractErr(e) || "Root silinemedi.";
+  } finally {
+    allowlistBusy.value = false;
+  }
+}
+
+async function saveAllowlist() {
+  allowlistError.value = "";
+  allowlistBusy.value = true;
+
+  try {
+    // trim + unique + boşları at
+    const cleanedRoots = (allowlist.value.roots || [])
+      .map((x) => (x ?? "").trim())
+      .filter((x) => x.length > 0);
+
+    // uniq (ordinal)
+    const uniq = [];
+    const seen = new Set();
+    for (const x of cleanedRoots) {
+      if (!seen.has(x)) {
+        seen.add(x);
+        uniq.push(x);
+      }
+    }
+
+    const dto = {
+      roots: uniq,
+      regexFlags: allowlist.value.regexFlags || [],
+      skipIdentifiers: allowlist.value.skipIdentifiers || [],
+      maxUploadMb: allowlist.value.maxUploadMb || 90,
+    };
+
+    const res = await axios.put("/api/allowlist", dto);
+    allowlist.value = normalizeAllowlist(res.data);
+    allowlist.value.roots.sort((a, b) => a.localeCompare(b));
+    allowDirty.value = false;
+  } catch (e) {
+    allowlistError.value = extractErr(e) || "Allowlist kaydedilemedi.";
+  } finally {
+    allowlistBusy.value = false;
+  }
+}
+
+// backend casing farklarını normalize et
+function normalizeAllowlist(data) {
+  const d = data || {};
+  return {
+    roots: d.roots ?? d.Roots ?? [],
+    regexFlags: d.regexFlags ?? d.RegexFlags ?? [],
+    skipIdentifiers: d.skipIdentifiers ?? d.SkipIdentifiers ?? [],
+    maxUploadMb: d.maxUploadMb ?? d.MaxUploadMb ?? 90,
+  };
+}
 </script>
