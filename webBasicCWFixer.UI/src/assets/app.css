@@ -209,6 +209,82 @@ td.snippet {
   color: #ffffff;
 }
 
+.system-test-button {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: #dc2626;
+  color: #ffffff;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  box-shadow: 0 8px 20px rgba(220, 38, 38, 0.35);
+  z-index: 10;
+}
+
+.system-test-button:hover:enabled {
+  background: #b91c1c;
+}
+
+.system-test-button:disabled {
+  opacity: 0.7;
+}
+
+.system-test-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.system-test-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.system-test-badge {
+  min-width: 52px;
+  text-align: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.system-test-pass {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.system-test-fail {
+  background: #fee2e2;
+  color: #7f1d1d;
+  border: 1px solid #fecaca;
+}
+
+.system-test-name {
+  font-weight: 600;
+  color: #111827;
+}
+
+.page-size-input {
+  width: 72px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+}
+
 .header h1 {
   margin: 0;
   font-size: 22px;

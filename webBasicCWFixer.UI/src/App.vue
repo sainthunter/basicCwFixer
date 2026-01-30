@@ -1,131 +1,66 @@
 <template>
   <div class="wrap">
+    <button
+      class="system-test-button"
+      :disabled="systemTestRunning"
+      title="Sistem Testi"
+      @click="runSystemTest"
+    >
+      ST
+    </button>
     <header class="header">
       <h1>Web Basic CW Fixer</h1>
       <!-- <p class="muted">ConceptWave metadata XML – Script lint</p> -->
     </header>
 
-    <section class="card">
-      <h2>1) XML Yükle</h2>
+    <UploadCard
+      :file="file"
+      :uploading="uploading"
+      :upload-progress="uploadProgress"
+      :error="error"
+      :on-file-change="onFileChange"
+      :on-start-analyze="startAnalyze"
+      :format-bytes="formatBytes"
+    />
 
-      <div class="row">
-        <input type="file" accept=".xml" @change="onFileChange" />
-        <button
-          class="primary"
-          :disabled="!file || uploading || running"
-          @click="startAnalyze"
-        >
-          Analiz Et
-        </button>
-      </div>
+    <JobStatusCard
+      :job-id="jobId"
+      :job-status="jobStatus"
+      :job-progress="jobProgress"
+      :job-message="jobMessage"
+      :job-error="jobError"
+      :has-log="hasLog"
+      :on-download-log="downloadLog"
+      :on-refresh-issues="refreshIssues"
+    />
 
-      <div v-if="file" class="muted">
-        Seçilen: <b>{{ file.name }}</b> ({{ formatBytes(file.size) }})
-      </div>
+    <IssueListCard
+      :is-visible="jobStatus === 'Done'"
+      :issues="issues"
+      :total-issues="totalIssues"
+      :page="page"
+      :page-size="pageSize"
+      :can-next="canNextPage"
+      :on-prev-page="() => goPage(page - 1)"
+      :on-next-page="() => goPage(page + 1)"
+      :on-page-size-change="onPageSizeChange"
+    />
 
-      <div v-if="uploading" class="progress">
-        <div class="bar" :style="{ width: uploadProgress + '%' }"></div>
-      </div>
-      <div v-if="uploading" class="muted">Upload: {{ uploadProgress }}%</div>
-
-      <div v-if="error" class="error">
-        {{ error }}
-      </div>
-    </section>
-
-    <section class="card" v-if="jobId">
-      <h2>2) Job Durumu</h2>
-
-      <div class="status">
-        <div><b>JobId:</b> {{ jobId }}</div>
-        <div class="status-line">
-          <span class="status-label">Status:</span>
-          <span :class="['status', jobStatus.toLowerCase()]">
-            {{ jobStatus }}
-          </span>
-        </div>
-        <div><b>Progress:</b> {{ jobProgress }}%</div>
-        <div class="muted" v-if="jobMessage">{{ jobMessage }}</div>
-        <div class="error" v-if="jobError">{{ jobError }}</div>
-      </div>
-
-      <div class="row" style="margin-top: 12px">
-        <button :disabled="!hasLog" @click="downloadLog">Log indir</button>
-        <button :disabled="jobStatus !== 'Done'" @click="refreshIssues">
-          Issue’ları yenile
-        </button>
-      </div>
-    </section>
-
-    <section class="card" v-if="jobStatus === 'Done'">
-      <h2>3) Issue Listesi</h2>
-
-      <div
-        class="row"
-        style="justify-content: space-between; align-items: center"
-      >
-        <div class="muted">
-          Toplam: <b>{{ totalIssues }}</b> • Sayfa: <b>{{ page }}</b>
-        </div>
-
-        <div class="row" style="gap: 8px">
-          <button :disabled="page <= 1" @click="goPage(page - 1)">
-            Önceki
-          </button>
-          <button
-            :disabled="page * pageSize >= totalIssues"
-            @click="goPage(page + 1)"
-          >
-            Sonraki
-          </button>
-        </div>
-      </div>
-
-      <div class="tableWrap" v-if="issues.length">
-        <table>
-          <colgroup>
-            <col style="width: 140px" />
-            <col style="width: 260px" />
-            <col style="width: 70px" />
-            <col style="width: 70px" />
-            <col style="width: 320px" />
-            <col style="width: 600px" />
-          </colgroup>
-          <thead>
-            <tr>
-              <th>Rule</th>
-              <th>Script</th>
-              <th>Line</th>
-              <th>Col</th>
-              <th>Message</th>
-              <th>Snippet</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(it, idx) in issues" :key="idx">
-              <td>
-                <code>{{ it.rule }}</code>
-              </td>
-              <td>{{ it.fullName }}</td>
-              <td>{{ it.line }}</td>
-              <td>{{ it.column }}</td>
-              <td>{{ it.message }}</td>
-              <td class="snippet">
-                <code>{{ it.snippet }}</code>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div v-else class="muted">Issue yok 🎉</div>
-    </section>
+    <SystemTestPanel
+      :results="systemTestResults"
+      :error="systemTestError"
+      :ran-at="systemTestRanAt"
+    />
   </div>
 </template>
 
 <script setup>
 import axios from "axios";
-import { onBeforeUnmount, ref } from "vue";
+import { computed, onBeforeUnmount, ref } from "vue";
+import IssueListCard from "./components/IssueListCard.vue";
+import JobStatusCard from "./components/JobStatusCard.vue";
+import SystemTestPanel from "./components/SystemTestPanel.vue";
+import UploadCard from "./components/UploadCard.vue";
 
 const file = ref(null);
 const error = ref("");
@@ -143,7 +78,12 @@ const hasLog = ref(false);
 const issues = ref([]);
 const totalIssues = ref(0);
 const page = ref(1);
-const pageSize = ref(100);
+const pageSize = ref(loadPageSize());
+
+const systemTestRunning = ref(false);
+const systemTestResults = ref([]);
+const systemTestError = ref("");
+const systemTestRanAt = ref("");
 
 let pollTimer = null;
 
@@ -249,6 +189,18 @@ async function fetchIssues(p) {
   issues.value = res.data.items || [];
 }
 
+function onPageSizeChange(e) {
+  const value = Number.parseInt(e?.target?.value, 10);
+  if (!Number.isFinite(value)) return;
+  const clamped = Math.min(500, Math.max(1, value));
+  pageSize.value = clamped;
+  savePageSize(clamped);
+  page.value = 1;
+  if (jobId.value) {
+    fetchIssues(page.value);
+  }
+}
+
 async function downloadLog() {
   if (!jobId.value) return;
 
@@ -289,5 +241,38 @@ function extractErr(e) {
   }
 }
 
+const canNextPage = computed(
+  () => page.value * pageSize.value < totalIssues.value,
+);
+
+async function runSystemTest() {
+  systemTestRunning.value = true;
+  systemTestError.value = "";
+  try {
+    const res = await axios.post("/api/system-test");
+    systemTestResults.value = res.data.checks || [];
+    systemTestRanAt.value = res.data.ranAt
+      ? new Date(res.data.ranAt).toLocaleString()
+      : "";
+  } catch (e) {
+    systemTestError.value = extractErr(e) || "Sistem testi başarısız.";
+  } finally {
+    systemTestRunning.value = false;
+  }
+}
+
 onBeforeUnmount(() => stopPolling());
+
+function loadPageSize() {
+  if (typeof window === "undefined") return 100;
+  const stored = window.localStorage.getItem("issuePageSize");
+  const parsed = Number.parseInt(stored || "", 10);
+  if (!Number.isFinite(parsed)) return 100;
+  return Math.min(500, Math.max(1, parsed));
+}
+
+function savePageSize(size) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem("issuePageSize", String(size));
+}
 </script>
