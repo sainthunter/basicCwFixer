@@ -1,5 +1,13 @@
 <template>
   <div class="wrap">
+    <button
+      class="system-test-button"
+      :disabled="systemTestRunning"
+      title="Sistem Testi"
+      @click="runSystemTest"
+    >
+      ST
+    </button>
     <header class="header">
       <h1>Web Basic CW Fixer</h1>
       <!-- <p class="muted">ConceptWave metadata XML – Script lint</p> -->
@@ -120,6 +128,32 @@
 
       <div v-else class="muted">Issue yok 🎉</div>
     </section>
+
+    <section class="card" v-if="systemTestResults.length || systemTestError">
+      <h2>Sistem Testi Sonuçları</h2>
+      <div class="muted" v-if="systemTestRanAt">
+        Çalıştırma zamanı: {{ systemTestRanAt }}
+      </div>
+      <div class="error" v-if="systemTestError">
+        {{ systemTestError }}
+      </div>
+      <ul class="system-test-list" v-if="systemTestResults.length">
+        <li v-for="(check, idx) in systemTestResults" :key="idx">
+          <span
+            :class="[
+              'system-test-badge',
+              check.success ? 'system-test-pass' : 'system-test-fail',
+            ]"
+          >
+            {{ check.success ? "PASS" : "FAIL" }}
+          </span>
+          <div class="system-test-body">
+            <div class="system-test-name">{{ check.name }}</div>
+            <div class="muted">{{ check.message }}</div>
+          </div>
+        </li>
+      </ul>
+    </section>
   </div>
 </template>
 
@@ -144,6 +178,11 @@ const issues = ref([]);
 const totalIssues = ref(0);
 const page = ref(1);
 const pageSize = ref(100);
+
+const systemTestRunning = ref(false);
+const systemTestResults = ref([]);
+const systemTestError = ref("");
+const systemTestRanAt = ref("");
 
 let pollTimer = null;
 
@@ -286,6 +325,22 @@ function extractErr(e) {
     return JSON.stringify(msg);
   } catch {
     return null;
+  }
+}
+
+async function runSystemTest() {
+  systemTestRunning.value = true;
+  systemTestError.value = "";
+  try {
+    const res = await axios.post("/api/system-test");
+    systemTestResults.value = res.data.checks || [];
+    systemTestRanAt.value = res.data.ranAt
+      ? new Date(res.data.ranAt).toLocaleString()
+      : "";
+  } catch (e) {
+    systemTestError.value = extractErr(e) || "Sistem testi başarısız.";
+  } finally {
+    systemTestRunning.value = false;
   }
 }
 
