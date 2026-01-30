@@ -1,0 +1,40 @@
+{
+  "Roots": [
+    "Global",
+    "Finder",
+    "Document",
+    "DataStructure",
+    "tt_Common",
+    "eval",
+    "Calendar",
+    "UserProfile",
+    "Process",
+    "AVM",
+    "DataObjectList",
+    "cwt_on",
+    "Catalog",
+    "RegExp",
+    "cwt_catalog",
+    "cwt_pcoe",
+    "cwt_pcapi",
+    "cwt_on_ovr",
+    "CwfError",
+    "FileWriter",
+    "uiOrder",
+    "FileReader",
+    "$"
+  ],
+  "RegexFlags": [
+    "g",
+    "i",
+    "m",
+    "s",
+    "u",
+    "y",
+    "d"
+  ],
+  "SkipIdentifiers": [
+    "this"
+  ],
+  "MaxUploadMb": 90
+}

@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="webBasicCWFixer.Analyzer/webBasicCWFixer.Analyzer.csproj" />
+  <Project Path="webBasicCWFixer.Api/webBasicCWFixer.Api.csproj" />
+</Solution>
