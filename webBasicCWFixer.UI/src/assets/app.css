@@ -278,6 +278,13 @@ td.snippet {
   color: #111827;
 }
 
+.page-size-input {
+  width: 72px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+}
+
 .header h1 {
   margin: 0;
   font-size: 22px;
