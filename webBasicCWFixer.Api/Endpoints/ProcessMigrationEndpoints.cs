@@ -17,7 +17,7 @@ public static class ProcessMigrationEndpoints
 
             if (!job.MigrationCompleted)
             {
-                return Results.Accepted(new { message = "Migration analiz tamamlanmadı." });
+                return Results.Accepted(value: new { message = "Migration analiz tamamlanmadı." });
             }
 
             if (string.IsNullOrWhiteSpace(job.MigrationOutputPath) || !File.Exists(job.MigrationOutputPath))
