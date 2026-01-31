@@ -1,4 +1,5 @@
 using webBasicCWFixer.Analyzer;
+using webBasicCWFixer.Analyzer.ProcessMigration;
 using webBasicCWFixer.Api.Allowlist;
 using webBasicCWFixer.Api.Models;
 
@@ -20,6 +21,8 @@ public sealed class SystemTestRunner
         var checks = new List<SystemTestCheck>();
         var success = true;
         AllowlistConfig? originalConfig = null;
+
+        string[]? cleanupPaths = null;
 
         try
         {
@@ -125,6 +128,86 @@ public sealed class SystemTestRunner
                 false,
                 ex.Message
             ));
+        }
+
+        try
+        {
+            var migrationXml = """
+                <ConceptWaveMetadata>
+                  <Process>
+                    <name>proc_SubX_v1_1</name>
+                  </Process>
+                  <Process>
+                    <name>proc_SubX_v1_2</name>
+                  </Process>
+                  <Process>
+                    <name>proc_Parent_v1_2</name>
+                    <activity type="spawn" name="spawnSub">
+                      <element name="ns:proc_SubX_v1_2">{AAA}</element>
+                    </activity>
+                    <activity type="join" name="joinSub">
+                      <element name="ns:proc_SubX_v1_1">{BBB}</element>
+                    </activity>
+                  </Process>
+                </ConceptWaveMetadata>
+                """;
+
+            var inputPath = Path.Combine(Path.GetTempPath(), $"webBasicCWFixer_migration_{Guid.NewGuid():N}.xml");
+            var outputPath = Path.Combine(Path.GetTempPath(), $"webBasicCWFixer_migration_{Guid.NewGuid():N}.csv");
+            cleanupPaths = new[] { inputPath, outputPath };
+
+            await File.WriteAllTextAsync(inputPath, migrationXml, cancellationToken);
+
+            var analyzer = new ProcessMigrationAnalyzer();
+            var summary = analyzer.Analyze(inputPath, outputPath, OutputFormat.Csv, debug: false);
+
+            if (summary.ProcessCount <= 0 || summary.LatestProcessCount <= 0)
+            {
+                throw new InvalidOperationException("Process migration analizinde beklenmeyen özet değerleri döndü.");
+            }
+
+            if (!File.Exists(outputPath))
+            {
+                throw new InvalidOperationException("Process migration çıktısı üretilemedi.");
+            }
+
+            var outputLines = await File.ReadAllLinesAsync(outputPath, cancellationToken);
+            if (!outputLines.Any(line => line.Contains("spawn_join_mismatch", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidOperationException("Process migration çıktısında beklenen bulgu yok.");
+            }
+
+            checks.Add(new SystemTestCheck(
+                "Process migration: sample XML",
+                true,
+                $"ProcessCount={summary.ProcessCount}, LatestProcessCount={summary.LatestProcessCount}, FindingCount={summary.FindingCount}"
+            ));
+        }
+        catch (Exception ex)
+        {
+            success = false;
+            checks.Add(new SystemTestCheck(
+                "Process migration: sample XML",
+                false,
+                ex.Message
+            ));
+        }
+        finally
+        {
+            foreach (var path in cleanupPaths ?? Array.Empty<string>())
+            {
+                try
+                {
+                    if (File.Exists(path))
+                    {
+                        File.Delete(path);
+                    }
+                }
+                catch
+                {
+                    // ignore cleanup failures
+                }
+            }
         }
 
         return new SystemTestResponse(success, checks, DateTimeOffset.UtcNow);
