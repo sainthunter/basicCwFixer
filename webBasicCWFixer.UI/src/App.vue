@@ -12,45 +12,298 @@
       <h1>Web Basic CW Fixer</h1>
       <!-- <p class="muted">ConceptWave metadata XML – Script lint</p> -->
     </header>
+    <!-- Allowlist Toggle Button -->
+    <div class="row" style="justify-content: flex-end; margin-bottom: 12px">
+      <button class="secondary" @click="toggleAllowlist">
+        {{ showAllowlist ? "Allowlist'i Kapat" : "Allowlist Yönetimi" }}
+      </button>
+    </div>
 
-    <UploadCard
-      :file="file"
-      :uploading="uploading"
-      :upload-progress="uploadProgress"
-      :error="error"
-      :on-file-change="onFileChange"
-      :on-start-analyze="startAnalyze"
-      :format-bytes="formatBytes"
-    />
+    <!-- Allowlist Panel -->
+    <section class="card" v-if="showAllowlist">
+      <h2>Allowlist Yönetimi</h2>
 
-    <JobStatusCard
-      :job-id="jobId"
-      :job-status="jobStatus"
-      :job-progress="jobProgress"
-      :job-message="jobMessage"
-      :job-error="jobError"
-      :has-log="hasLog"
-      :on-download-log="downloadLog"
-      :on-refresh-issues="refreshIssues"
-    />
+      <div class="row" style="gap: 10px; margin-bottom: 12px">
+        <input
+          class="text"
+          v-model="newRoot"
+          placeholder="Yeni root ekle (örn: RegExp, Finder, tt_Common, eval...)"
+          @keydown.enter="addRoot"
+        />
+        <button
+          class="primary"
+          :disabled="!newRoot.trim() || allowlistBusy"
+          @click="addRoot"
+        >
+          Ekle
+        </button>
 
-    <IssueListCard
-      :is-visible="jobStatus === 'Done'"
-      :issues="issues"
-      :total-issues="totalIssues"
-      :page="page"
-      :page-size="pageSize"
-      :can-next="canNextPage"
-      :on-prev-page="() => goPage(page - 1)"
-      :on-next-page="() => goPage(page + 1)"
-      :on-page-size-change="onPageSizeChange"
-    />
+        <button
+          class="secondary"
+          :disabled="allowlistBusy"
+          @click="reloadAllowlist"
+        >
+          Yenile
+        </button>
 
-    <SystemTestPanel
-      :results="systemTestResults"
-      :error="systemTestError"
-      :ran-at="systemTestRanAt"
-    />
+        <button
+          class="secondary"
+          :disabled="allowlistBusy || !allowDirty"
+          @click="saveAllowlist"
+        >
+          Kaydet (PUT)
+        </button>
+      </div>
+
+      <div class="muted" v-if="allowlistBusy">İşleniyor...</div>
+      <div class="error" v-if="allowlistError">{{ allowlistError }}</div>
+
+      <div class="muted" style="margin-top: 6px">
+        Roots: <b>{{ allowlist.roots.length }}</b>
+      </div>
+
+      <div
+        class="tableWrap"
+        v-if="allowlist.roots.length"
+        style="margin-top: 12px"
+      >
+        <table>
+          <colgroup>
+            <col style="width: 60px" />
+            <col style="width: auto" />
+            <col style="width: 160px" />
+          </colgroup>
+
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Root</th>
+              <th>İşlem</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr v-for="(r, i) in allowlist.roots" :key="r + '_' + i">
+              <td>{{ i + 1 }}</td>
+
+              <!-- Edit: inline -->
+              <td>
+                <input
+                  class="text"
+                  v-model="allowlist.roots[i]"
+                  @input="allowDirty = true"
+                />
+              </td>
+
+              <td>
+                <button
+                  class="danger"
+                  :disabled="allowlistBusy"
+                  @click="deleteRoot(r)"
+                >
+                  Sil
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-else class="muted" style="margin-top: 10px">Root listesi boş.</div>
+
+      <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 16px 0" />
+
+      <!-- Optional: RegexFlags + SkipIdentifiers (şimdilik sadece gösterelim) -->
+      <div class="row" style="gap: 20px; align-items: flex-start">
+        <div style="min-width: 320px">
+          <div style="font-weight: 600; margin-bottom: 6px">RegexFlags</div>
+          <div class="muted" v-if="!allowlist.regexFlags.length">Boş</div>
+          <ul v-else class="plainList">
+            <li v-for="(x, idx) in allowlist.regexFlags" :key="'rf_' + idx">
+              <code>{{ x }}</code>
+            </li>
+          </ul>
+        </div>
+
+        <div style="min-width: 320px">
+          <div style="font-weight: 600; margin-bottom: 6px">
+            SkipIdentifiers
+          </div>
+          <div class="muted" v-if="!allowlist.skipIdentifiers.length">Boş</div>
+          <ul v-else class="plainList">
+            <li
+              v-for="(x, idx) in allowlist.skipIdentifiers"
+              :key="'sk_' + idx"
+            >
+              <code>{{ x }}</code>
+            </li>
+          </ul>
+        </div>
+
+        <div style="min-width: 240px">
+          <div style="font-weight: 600; margin-bottom: 6px">MaxUploadMb</div>
+          <input
+            class="text"
+            type="number"
+            min="1"
+            max="90"
+            v-model.number="allowlist.maxUploadMb"
+            @input="allowDirty = true"
+          />
+          <div class="muted" style="margin-top: 6px">(Kaydet ile PUT)</div>
+
+          <button
+            class="secondary"
+            :disabled="allowlistBusy || !allowDirty"
+            @click="saveAllowlist"
+          >
+            Kaydet (PUT)
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>1) XML Yükle</h2>
+
+      <div class="row">
+        <input type="file" accept=".xml" @change="onFileChange" />
+        <button
+          class="primary"
+          :disabled="!file || uploading || running"
+          @click="startAnalyze"
+        >
+          Analiz Et
+        </button>
+      </div>
+
+      <div v-if="file" class="muted">
+        Seçilen: <b>{{ file.name }}</b> ({{ formatBytes(file.size) }})
+      </div>
+
+      <div v-if="uploading" class="progress">
+        <div class="bar" :style="{ width: uploadProgress + '%' }"></div>
+      </div>
+      <div v-if="uploading" class="muted">Upload: {{ uploadProgress }}%</div>
+
+      <div v-if="error" class="error">
+        {{ error }}
+      </div>
+    </section>
+
+    <section class="card" v-if="jobId">
+      <h2>2) Job Durumu</h2>
+
+      <div class="status">
+        <div><b>JobId:</b> {{ jobId }}</div>
+        <div class="status-line">
+          <span class="status-label">Status:</span>
+          <span :class="['status', jobStatus.toLowerCase()]">
+            {{ jobStatus }}
+          </span>
+        </div>
+        <div><b>Progress:</b> {{ jobProgress }}%</div>
+        <div class="muted" v-if="jobMessage">{{ jobMessage }}</div>
+        <div class="error" v-if="jobError">{{ jobError }}</div>
+      </div>
+
+      <div class="row" style="margin-top: 12px">
+        <button :disabled="!hasLog" @click="downloadLog">Log indir</button>
+        <button :disabled="jobStatus !== 'Done'" @click="refreshIssues">
+          Issue’ları yenile
+        </button>
+      </div>
+    </section>
+
+    <section class="card" v-if="jobStatus === 'Done'">
+      <h2>3) Issue Listesi</h2>
+
+      <div
+        class="row"
+        style="justify-content: space-between; align-items: center"
+      >
+        <div class="muted">
+          Toplam: <b>{{ totalIssues }}</b> • Sayfa: <b>{{ page }}</b>
+        </div>
+
+        <div class="row" style="gap: 8px">
+          <button :disabled="page <= 1" @click="goPage(page - 1)">
+            Önceki
+          </button>
+          <button
+            :disabled="page * pageSize >= totalIssues"
+            @click="goPage(page + 1)"
+          >
+            Sonraki
+          </button>
+        </div>
+      </div>
+
+      <div class="tableWrap" v-if="issues.length">
+        <table>
+          <colgroup>
+            <col style="width: 140px" />
+            <col style="width: 260px" />
+            <col style="width: 70px" />
+            <col style="width: 70px" />
+            <col style="width: 320px" />
+            <col style="width: 600px" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Rule</th>
+              <th>Script</th>
+              <th>Line</th>
+              <th>Col</th>
+              <th>Message</th>
+              <th>Snippet</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(it, idx) in issues" :key="idx">
+              <td>
+                <code>{{ it.rule }}</code>
+              </td>
+              <td>{{ it.fullName }}</td>
+              <td>{{ it.line }}</td>
+              <td>{{ it.column }}</td>
+              <td>{{ it.message }}</td>
+              <td class="snippet">
+                <code>{{ it.snippet }}</code>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-else class="muted">Issue yok 🎉</div>
+    </section>
+
+    <section class="card" v-if="systemTestResults.length || systemTestError">
+      <h2>Sistem Testi Sonuçları</h2>
+      <div class="muted" v-if="systemTestRanAt">
+        Çalıştırma zamanı: {{ systemTestRanAt }}
+      </div>
+      <div class="error" v-if="systemTestError">
+        {{ systemTestError }}
+      </div>
+      <ul class="system-test-list" v-if="systemTestResults.length">
+        <li v-for="(check, idx) in systemTestResults" :key="idx">
+          <span
+            :class="[
+              'system-test-badge',
+              check.success ? 'system-test-pass' : 'system-test-fail',
+            ]"
+          >
+            {{ check.success ? "PASS" : "FAIL" }}
+          </span>
+          <div class="system-test-body">
+            <div class="system-test-name">{{ check.name }}</div>
+            <div class="muted">{{ check.message }}</div>
+          </div>
+        </li>
+      </ul>
+    </section>
   </div>
 </template>
 
@@ -79,6 +332,11 @@ const issues = ref([]);
 const totalIssues = ref(0);
 const page = ref(1);
 const pageSize = ref(loadPageSize());
+
+const systemTestRunning = ref(false);
+const systemTestResults = ref([]);
+const systemTestError = ref("");
+const systemTestRanAt = ref("");
 
 const systemTestRunning = ref(false);
 const systemTestResults = ref([]);
@@ -241,10 +499,6 @@ function extractErr(e) {
   }
 }
 
-const canNextPage = computed(
-  () => page.value * pageSize.value < totalIssues.value,
-);
-
 async function runSystemTest() {
   systemTestRunning.value = true;
   systemTestError.value = "";
@@ -262,17 +516,136 @@ async function runSystemTest() {
 }
 
 onBeforeUnmount(() => stopPolling());
+// -------------------- Allowlist UI --------------------
+const showAllowlist = ref(false);
+const allowlistBusy = ref(false);
+const allowlistError = ref("");
+const allowDirty = ref(false);
 
-function loadPageSize() {
-  if (typeof window === "undefined") return 100;
-  const stored = window.localStorage.getItem("issuePageSize");
-  const parsed = Number.parseInt(stored || "", 10);
-  if (!Number.isFinite(parsed)) return 100;
-  return Math.min(500, Math.max(1, parsed));
+const newRoot = ref("");
+
+const allowlist = ref({
+  roots: [],
+  regexFlags: [],
+  skipIdentifiers: [],
+  maxUploadMb: 90,
+});
+
+function toggleAllowlist() {
+  showAllowlist.value = !showAllowlist.value;
+  if (showAllowlist.value) {
+    reloadAllowlist();
+  }
 }
 
-function savePageSize(size) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem("issuePageSize", String(size));
+async function reloadAllowlist() {
+  allowlistError.value = "";
+  allowlistBusy.value = true;
+  allowDirty.value = false;
+
+  try {
+    const res = await axios.get("/api/allowlist");
+    allowlist.value = normalizeAllowlist(res.data);
+
+    // Roots'u UI tarafında her zaman sıralı gösterelim (istersen kaldır)
+    allowlist.value.roots.sort((a, b) => a.localeCompare(b));
+  } catch (e) {
+    allowlistError.value = extractErr(e) || "Allowlist alınamadı.";
+  } finally {
+    allowlistBusy.value = false;
+  }
+}
+
+async function addRoot() {
+  const v = newRoot.value.trim();
+  if (!v) return;
+
+  allowlistError.value = "";
+  allowlistBusy.value = true;
+
+  try {
+    const res = await axios.post("/api/allowlist/roots", { value: v });
+    allowlist.value = normalizeAllowlist(res.data);
+    allowlist.value.roots.sort((a, b) => a.localeCompare(b));
+    newRoot.value = "";
+    allowDirty.value = false;
+  } catch (e) {
+    allowlistError.value = extractErr(e) || "Root eklenemedi.";
+  } finally {
+    allowlistBusy.value = false;
+  }
+}
+
+async function deleteRoot(value) {
+  const v = (value || "").trim();
+  if (!v) return;
+
+  allowlistError.value = "";
+  allowlistBusy.value = true;
+  console.log("deleteRoot called", { value, v });
+
+  try {
+    //const url = `/api/allowlist/roots/${encodeURIComponent(v)}`;
+    const res = await axios.delete("/api/allowlist/roots", {
+      params: { value: v },
+    });
+
+    allowlist.value = normalizeAllowlist(res.data);
+    allowlist.value.roots.sort((a, b) => a.localeCompare(b));
+    allowDirty.value = false;
+  } catch (e) {
+    allowlistError.value = extractErr(e) || "Root silinemedi.";
+  } finally {
+    allowlistBusy.value = false;
+  }
+}
+
+async function saveAllowlist() {
+  allowlistError.value = "";
+  allowlistBusy.value = true;
+
+  try {
+    // trim + unique + boşları at
+    const cleanedRoots = (allowlist.value.roots || [])
+      .map((x) => (x ?? "").trim())
+      .filter((x) => x.length > 0);
+
+    // uniq (ordinal)
+    const uniq = [];
+    const seen = new Set();
+    for (const x of cleanedRoots) {
+      if (!seen.has(x)) {
+        seen.add(x);
+        uniq.push(x);
+      }
+    }
+
+    const dto = {
+      roots: uniq,
+      regexFlags: allowlist.value.regexFlags || [],
+      skipIdentifiers: allowlist.value.skipIdentifiers || [],
+      maxUploadMb: allowlist.value.maxUploadMb || 90,
+    };
+
+    const res = await axios.put("/api/allowlist", dto);
+    allowlist.value = normalizeAllowlist(res.data);
+    allowlist.value.roots.sort((a, b) => a.localeCompare(b));
+    allowDirty.value = false;
+  } catch (e) {
+    allowlistError.value = extractErr(e) || "Allowlist kaydedilemedi.";
+  } finally {
+    allowlistBusy.value = false;
+  }
+}
+
+// backend casing farklarını normalize et
+function normalizeAllowlist(data) {
+  const d = data || {};
+  return {
+    roots: d.roots ?? d.Roots ?? [],
+    regexFlags: d.regexFlags ?? d.RegexFlags ?? [],
+    skipIdentifiers: d.skipIdentifiers ?? d.SkipIdentifiers ?? [],
+    maxUploadMb: d.maxUploadMb ?? d.MaxUploadMb ?? 90,
+  };
 }
 </script>
