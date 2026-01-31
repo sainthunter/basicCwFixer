@@ -20,6 +20,9 @@
       <button :disabled="jobStatus !== 'Done'" @click="onRefreshIssues">
         Issue’ları yenile
       </button>
+      <button :disabled="!migrationReady" @click="onOpenMigrations">
+        Migration Sonuçları
+      </button>
     </div>
   </section>
 </template>
@@ -55,6 +58,14 @@ defineProps({
     required: true,
   },
   onRefreshIssues: {
+    type: Function,
+    required: true,
+  },
+  migrationReady: {
+    type: Boolean,
+    required: true,
+  },
+  onOpenMigrations: {
     type: Function,
     required: true,
   },

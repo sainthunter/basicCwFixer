@@ -22,5 +22,11 @@ public sealed class JobState
     // input temp xml path
     public string? XmlPath { get; set; }
 
+    // process migration output
+    public string? MigrationOutputPath { get; set; }
+    public int MigrationFindingCount { get; set; }
+    public bool MigrationCompleted { get; set; }
+    public string? MigrationError { get; set; }
+
     public string? Error { get; set; }
 }

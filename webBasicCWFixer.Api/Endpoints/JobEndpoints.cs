@@ -20,6 +20,8 @@ public static class JobEndpoints
                 job.ScriptCount,
                 job.IssueCount,
                 hasLog = !string.IsNullOrWhiteSpace(job.LogPath) && File.Exists(job.LogPath),
+                migrationReady = job.MigrationCompleted,
+                migrationCount = job.MigrationFindingCount,
                 error = job.Error
             });
         });

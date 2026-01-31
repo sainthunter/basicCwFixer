@@ -229,6 +229,9 @@ td.snippet {
   align-items: flex-start;
   gap: 12px;
   padding: 12px;
+  border: 1px solid #374151;
+  border-radius: 10px;
+  background: #1f2937;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
   background: #ffffff;
@@ -358,4 +361,55 @@ button.secondary {
   color: #e5e7eb;
   border-bottom: 1px solid #374151;
   padding-bottom: 6px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.modal {
+  width: min(1200px, 92vw);
+  max-height: 85vh;
+  overflow: auto;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #e5e7eb;
+}
+
+.modal-close {
+  border: 1px solid #4b5563;
+  background: #111827;
+  color: #e5e7eb;
+}
+
+.modal table {
+  table-layout: fixed;
+}
+
+.modal th,
+.modal td {
+  white-space: normal;
+  word-break: break-word;
+  vertical-align: top;
 }

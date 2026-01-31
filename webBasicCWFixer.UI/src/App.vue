@@ -32,6 +32,8 @@
       :has-log="hasLog"
       :on-download-log="downloadLog"
       :on-refresh-issues="refreshIssues"
+      :migration-ready="migrationReady"
+      :on-open-migrations="openMigrationModal"
     />
 
     <IssueListCard
@@ -51,6 +53,58 @@
       :error="systemTestError"
       :ran-at="systemTestRanAt"
     />
+
+    <div v-if="migrationModalOpen" class="modal-backdrop">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>Migration Findings</h3>
+          <button class="modal-close" @click="closeMigrationModal">Kapat</button>
+        </div>
+        <div class="muted" v-if="migrationMeta">
+          Toplam: {{ migrationMeta.total }}
+        </div>
+        <div class="error" v-if="migrationError">{{ migrationError }}</div>
+        <div class="tableWrap" v-if="migrationItems.length">
+          <table>
+            <colgroup>
+              <col style="width: 280px" />
+              <col style="width: 140px" />
+              <col style="width: 220px" />
+              <col style="width: 160px" />
+              <col style="width: 120px" />
+              <col style="width: 260px" />
+              <col style="width: 220px" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Parent</th>
+                <th>RefType</th>
+                <th>Target</th>
+                <th>Expected</th>
+                <th>Severity</th>
+                <th>Location</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(item, idx) in migrationItems" :key="idx">
+                <td>{{ item.parentProcessName }}</td>
+                <td>{{ item.refType }}</td>
+                <td>{{ item.targetProcessName }}</td>
+                <td>{{ item.expectedVersion }}</td>
+                <td>{{ item.severity }}</td>
+                <td>{{ item.location }}</td>
+                <td>{{ item.reason }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="muted" v-if="!migrationLoading">
+          Migration bulgusu yok.
+        </div>
+        <div class="muted" v-if="migrationLoading">Yükleniyor...</div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -74,6 +128,7 @@ const jobProgress = ref(0);
 const jobMessage = ref("");
 const jobError = ref("");
 const hasLog = ref(false);
+const migrationReady = ref(false);
 
 const issues = ref([]);
 const totalIssues = ref(0);
@@ -84,6 +139,12 @@ const systemTestRunning = ref(false);
 const systemTestResults = ref([]);
 const systemTestError = ref("");
 const systemTestRanAt = ref("");
+
+const migrationModalOpen = ref(false);
+const migrationItems = ref([]);
+const migrationMeta = ref(null);
+const migrationError = ref("");
+const migrationLoading = ref(false);
 
 let pollTimer = null;
 
@@ -168,6 +229,7 @@ async function pollJob() {
   jobMessage.value = res.data.message || "";
   jobError.value = res.data.error || "";
   hasLog.value = !!res.data.hasLog;
+  migrationReady.value = !!res.data.migrationReady;
 }
 
 async function refreshIssues() {
@@ -217,6 +279,32 @@ async function downloadLog() {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+async function openMigrationModal() {
+  migrationModalOpen.value = true;
+  await fetchMigrations();
+}
+
+function closeMigrationModal() {
+  migrationModalOpen.value = false;
+}
+
+async function fetchMigrations() {
+  if (!jobId.value) return;
+  migrationLoading.value = true;
+  migrationError.value = "";
+  try {
+    const res = await axios.get(`/api/jobs/${jobId.value}/migrations`, {
+      params: { limit: 200 },
+    });
+    migrationItems.value = res.data.items || [];
+    migrationMeta.value = { total: res.data.total || 0 };
+  } catch (e) {
+    migrationError.value = extractErr(e) || "Migration sonuçları alınamadı.";
+  } finally {
+    migrationLoading.value = false;
+  }
 }
 
 function formatBytes(bytes) {
