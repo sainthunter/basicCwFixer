@@ -21,6 +21,7 @@ builder.Services.AddSingleton<JobStore>();
 builder.Services.AddSingleton<JobQueue>();
 builder.Services.AddSingleton<AllowlistService>();
 builder.Services.AddSingleton<AnalyzerService>();
+builder.Services.AddSingleton<webBasicCWFixer.Analyzer.ProcessMigration.ProcessMigrationAnalyzer>();
 builder.Services.AddSingleton<SystemTestRunner>();
 builder.Services.AddHostedService<JobWorker>();
 
@@ -36,6 +37,7 @@ app.MapAnalyzeEndpoints();
 app.MapJobEndpoints();
 app.MapAllowlistEndpoints();
 app.MapSystemTestEndpoints();
+app.MapProcessMigrationEndpoints();
 
 
 app.Run();

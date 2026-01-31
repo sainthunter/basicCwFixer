@@ -1,5 +1,6 @@
 ﻿using webBasicCWFixer.Analyzer;
 using webBasicCWFixer.Api.Allowlist;
+using webBasicCWFixer.Analyzer.ProcessMigration;
 
 namespace webBasicCWFixer.Api.Jobs;
 
@@ -9,14 +10,22 @@ public sealed class JobWorker : BackgroundService
     private readonly JobStore _store;
     private readonly AllowlistService _allowlist;
     private readonly AnalyzerService _analyzer;
+    private readonly ProcessMigrationAnalyzer _migrationAnalyzer;
     private readonly ILogger<JobWorker> _log;
 
-    public JobWorker(JobQueue queue, JobStore store, AllowlistService allowlist, AnalyzerService analyzer, ILogger<JobWorker> log)
+    public JobWorker(
+        JobQueue queue,
+        JobStore store,
+        AllowlistService allowlist,
+        AnalyzerService analyzer,
+        ProcessMigrationAnalyzer migrationAnalyzer,
+        ILogger<JobWorker> log)
     {
         _queue = queue;
         _store = store;
         _allowlist = allowlist;
         _analyzer = analyzer;
+        _migrationAnalyzer = migrationAnalyzer;
         _log = log;
     }
 
@@ -57,6 +66,17 @@ public sealed class JobWorker : BackgroundService
                 job.IssueCount = result.IssueCount;
                 job.Issues.AddRange(result.Issues);
 
+                job.Message = "Migration kontrolü...";
+                var migrationOutput = Path.Combine(Path.GetTempPath(), $"webBasicCWFixer_{jobId}_migrations.jsonl");
+                job.MigrationOutputPath = migrationOutput;
+                var migrationSummary = _migrationAnalyzer.Analyze(
+                    job.XmlPath!,
+                    migrationOutput,
+                    OutputFormat.Jsonl,
+                    debug: false);
+                job.MigrationFindingCount = migrationSummary.FindingCount;
+                job.MigrationCompleted = true;
+
                 job.Progress = 100;
                 job.Message = "Bitti";
                 job.Status = JobStatus.Done;
@@ -67,6 +87,7 @@ public sealed class JobWorker : BackgroundService
                 job.Status = JobStatus.Error;
                 job.Error = ex.Message;
                 job.Message = "Hata";
+                job.MigrationError ??= ex.Message;
             }
             finally
             {
