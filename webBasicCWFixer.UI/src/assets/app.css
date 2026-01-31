@@ -306,6 +306,35 @@ button.primary:hover {
 button.secondary {
   background: #111827;
 }
+
+.text {
+  min-width: 260px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #4b5563;
+  background: #0f172a;
+  color: #e5e7eb;
+}
+
+.danger {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
+}
+
+.danger:hover:enabled {
+  background: #b91c1c;
+}
+
+.plainList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.plainList li {
+  padding: 4px 0;
+}
 .status-line {
   display: flex;
   align-items: center;
