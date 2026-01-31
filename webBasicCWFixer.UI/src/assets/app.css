@@ -401,3 +401,14 @@ button.secondary {
   background: #111827;
   color: #e5e7eb;
 }
+
+.modal table {
+  table-layout: fixed;
+}
+
+.modal th,
+.modal td {
+  white-space: normal;
+  word-break: break-word;
+  vertical-align: top;
+}

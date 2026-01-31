@@ -67,13 +67,13 @@
         <div class="tableWrap" v-if="migrationItems.length">
           <table>
             <colgroup>
-              <col style="width: 200px" />
-              <col style="width: 120px" />
+              <col style="width: 280px" />
+              <col style="width: 140px" />
+              <col style="width: 220px" />
               <col style="width: 160px" />
-              <col style="width: 160px" />
               <col style="width: 120px" />
-              <col style="width: 200px" />
-              <col style="width: 200px" />
+              <col style="width: 260px" />
+              <col style="width: 220px" />
             </colgroup>
             <thead>
               <tr>
