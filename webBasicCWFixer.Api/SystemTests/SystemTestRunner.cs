@@ -24,6 +24,7 @@ public sealed class SystemTestRunner
 
         string[]? cleanupPaths = null;
 
+        string? warningXmlPath = null;
         try
         {
             originalConfig = _allowlistService.Load();
@@ -128,6 +129,74 @@ public sealed class SystemTestRunner
                 false,
                 ex.Message
             ));
+        }
+
+        try
+        {
+            var warningXml = """
+                <root>
+                  <namespace name="TestNs" />
+                  <Script>
+                    <name>WarnScript</name>
+                    <namespace name="TestNs" />
+                    <parameter>
+                      <name>unusedParam</name>
+                    </parameter>
+                    <script><![CDATA[
+                      var usedVar = 1;
+                      var unusedVar = 2;
+                      var dupVar = 10;
+                      var dupVar = 20;
+                      function unusedFunc(arg1) {
+                        return arg1 + usedVar;
+                      }
+                      if (usedVar > 0) {
+                        usedVar = usedVar + 1;
+                      }
+                    ]]></script>
+                  </Script>
+                </root>
+                """;
+
+            warningXmlPath = Path.Combine(Path.GetTempPath(), $"webBasicCWFixer_systemtest_warn_{Guid.NewGuid():N}.xml");
+
+            await File.WriteAllTextAsync(warningXmlPath, warningXml, cancellationToken);
+
+            var allowlistCfg = _allowlistService.Load();
+            var result = _analyzerService.AnalyzeWarnings(warningXmlPath, allowlistCfg);
+
+            if (result.WarningCount <= 0)
+            {
+                throw new InvalidOperationException("Uyarı analizi beklenen bulguları üretmedi.");
+            }
+
+            if (!result.Warnings.Any(w => w.Rule == "unused-variable" || w.Rule == "unused-parameter" || w.Rule == "unused-function"))
+            {
+                throw new InvalidOperationException("Uyarı analizi beklenen kural türlerini üretmedi.");
+            }
+
+            checks.Add(new SystemTestCheck(
+                "Warnings: sample XML",
+                true,
+                $"WarningCount={result.WarningCount}"
+            ));
+
+        }
+        catch (Exception ex)
+        {
+            success = false;
+            checks.Add(new SystemTestCheck(
+                "Warnings: sample XML",
+                false,
+                ex.Message
+            ));
+        }
+        finally
+        {
+            if (!string.IsNullOrWhiteSpace(warningXmlPath) && File.Exists(warningXmlPath))
+            {
+                File.Delete(warningXmlPath);
+            }
         }
 
         try

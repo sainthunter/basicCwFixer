@@ -214,6 +214,14 @@
         </button>
         <button
           class="secondary"
+          :disabled="jobStatus !== 'Done'"
+          @click="openWarningsModal"
+        >
+          Düzeltilmesi gerekenler
+          <span v-if="warningCount">({{ warningCount }})</span>
+        </button>
+        <button
+          class="secondary"
           :disabled="!migrationReady"
           @click="openMigrationModal"
         >
@@ -363,6 +371,59 @@
         <div class="muted" v-if="migrationLoading">Yükleniyor...</div>
       </div>
     </div>
+
+    <div v-if="warningsModalOpen" class="modal-backdrop">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>Düzeltilmesi gerekenler</h3>
+          <button class="modal-close" @click="closeWarningsModal">Kapat</button>
+        </div>
+        <div class="muted" v-if="warningsMeta">
+          Toplam: {{ warningsMeta.total }}
+        </div>
+        <div class="error" v-if="warningsError">{{ warningsError }}</div>
+        <div class="tableWrap" v-if="warningsItems.length">
+          <table>
+            <colgroup>
+              <col style="width: 180px" />
+              <col style="width: 260px" />
+              <col style="width: 70px" />
+              <col style="width: 70px" />
+              <col style="width: 320px" />
+              <col style="width: 600px" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Rule</th>
+                <th>Script</th>
+                <th>Line</th>
+                <th>Col</th>
+                <th>Message</th>
+                <th>Snippet</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(item, idx) in warningsItems" :key="idx">
+                <td>
+                  <code>{{ item.rule }}</code>
+                </td>
+                <td>{{ item.fullName }}</td>
+                <td>{{ item.line }}</td>
+                <td>{{ item.column }}</td>
+                <td>{{ item.message }}</td>
+                <td class="snippet">
+                  <code>{{ item.snippet }}</code>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="muted" v-if="!warningsLoading">
+          Düzeltilmesi gereken bulunamadı.
+        </div>
+        <div class="muted" v-if="warningsLoading">Yükleniyor...</div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -384,6 +445,7 @@ const jobError = ref("");
 const hasLog = ref(false);
 const running = ref(false);
 const migrationReady = ref(false);
+const warningCount = ref(0);
 
 const issues = ref([]);
 const totalIssues = ref(0);
@@ -400,6 +462,12 @@ const migrationItems = ref([]);
 const migrationMeta = ref(null);
 const migrationError = ref("");
 const migrationLoading = ref(false);
+
+const warningsModalOpen = ref(false);
+const warningsItems = ref([]);
+const warningsMeta = ref(null);
+const warningsError = ref("");
+const warningsLoading = ref(false);
 
 let pollTimer = null;
 
@@ -427,6 +495,11 @@ async function startAnalyze() {
   issues.value = [];
   totalIssues.value = 0;
   page.value = 1;
+  warningCount.value = 0;
+  warningsItems.value = [];
+  warningsMeta.value = null;
+  warningsError.value = "";
+  warningsModalOpen.value = false;
 
   uploading.value = true;
   uploadProgress.value = 0;
@@ -486,6 +559,7 @@ async function pollJob() {
   jobError.value = res.data.error || "";
   hasLog.value = !!res.data.hasLog;
   migrationReady.value = !!res.data.migrationReady;
+  warningCount.value = res.data.warningCount || 0;
 }
 
 async function refreshIssues() {
@@ -534,6 +608,15 @@ function closeMigrationModal() {
   migrationModalOpen.value = false;
 }
 
+async function openWarningsModal() {
+  warningsModalOpen.value = true;
+  await fetchWarnings();
+}
+
+function closeWarningsModal() {
+  warningsModalOpen.value = false;
+}
+
 async function fetchMigrations() {
   if (!jobId.value) return;
   migrationLoading.value = true;
@@ -548,6 +631,23 @@ async function fetchMigrations() {
     migrationError.value = extractErr(e) || "Migration sonuçları alınamadı.";
   } finally {
     migrationLoading.value = false;
+  }
+}
+
+async function fetchWarnings() {
+  if (!jobId.value) return;
+  warningsLoading.value = true;
+  warningsError.value = "";
+  try {
+    const res = await axios.get(`/api/jobs/${jobId.value}/warnings`, {
+      params: { page: 1, pageSize: 200 },
+    });
+    warningsItems.value = res.data.items || [];
+    warningsMeta.value = { total: res.data.total || 0 };
+  } catch (e) {
+    warningsError.value = extractErr(e) || "Uyarı sonuçları alınamadı.";
+  } finally {
+    warningsLoading.value = false;
   }
 }
 
