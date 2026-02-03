@@ -12,9 +12,11 @@ public sealed class JobState
 
     public int ScriptCount { get; set; }
     public int IssueCount { get; set; }
+    public int WarningCount { get; set; }
 
     // UI için paging
     public List<webBasicCWFixer.Analyzer.IssueDto> Issues { get; } = new();
+    public List<webBasicCWFixer.Analyzer.WarningDto> Warnings { get; } = new();
 
     // log path (temp)
     public string? LogPath { get; set; }

@@ -19,6 +19,7 @@ public static class JobEndpoints
                 job.Message,
                 job.ScriptCount,
                 job.IssueCount,
+                job.WarningCount,
                 hasLog = !string.IsNullOrWhiteSpace(job.LogPath) && File.Exists(job.LogPath),
                 migrationReady = job.MigrationCompleted,
                 migrationCount = job.MigrationFindingCount,
@@ -36,6 +37,23 @@ public static class JobEndpoints
 
             var total = job.Issues.Count;
             var items = job.Issues
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            return Results.Ok(new { total, page, pageSize, items });
+        });
+
+        app.MapGet("/api/jobs/{jobId}/warnings", (string jobId, int page, int pageSize, JobStore store) =>
+        {
+            page = page <= 0 ? 1 : page;
+            pageSize = pageSize is <= 0 or > 500 ? 100 : pageSize;
+
+            if (!store.TryGet(jobId, out var job) || job is null)
+                return Results.NotFound();
+
+            var total = job.Warnings.Count;
+            var items = job.Warnings
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToList();

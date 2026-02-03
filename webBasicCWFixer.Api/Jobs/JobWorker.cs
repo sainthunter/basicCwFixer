@@ -66,6 +66,20 @@ public sealed class JobWorker : BackgroundService
                 job.IssueCount = result.IssueCount;
                 job.Issues.AddRange(result.Issues);
 
+                job.Message = "Uyarı analizi...";
+                var warningResult = _analyzer.AnalyzeWarnings(job.XmlPath!, cfg, onProgress: sc =>
+                {
+                    if (sc - lastReported >= 50)
+                    {
+                        lastReported = sc;
+                        job.Progress = Math.Min(95, job.Progress + 2);
+                        job.Message = $"Uyarılar taranıyor... ({sc})";
+                    }
+                });
+
+                job.WarningCount = warningResult.WarningCount;
+                job.Warnings.AddRange(warningResult.Warnings);
+
                 job.Message = "Migration kontrolü...";
                 var migrationOutput = Path.Combine(Path.GetTempPath(), $"webBasicCWFixer_{jobId}_migrations.jsonl");
                 job.MigrationOutputPath = migrationOutput;
