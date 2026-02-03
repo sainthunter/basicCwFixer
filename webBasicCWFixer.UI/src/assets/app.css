@@ -403,7 +403,7 @@ button.secondary {
 }
 
 .modal {
-  width: min(1200px, 92vw);
+  width: min(1600px, 92vw);
   max-height: 85vh;
   overflow: auto;
   background: #1f2937;
